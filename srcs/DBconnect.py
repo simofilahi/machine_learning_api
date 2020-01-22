@@ -18,14 +18,14 @@ def LoadData(Conn, Query):
 def closeConnection(Conn):
     Conn.close()
 
-def index():
+def DBconnect():
     #name of database
-    DBName = "db\ml.db"
+    DBName = "db\latest.db"
     # Connect to Database
     Conn = Connect(DBName)
     # Query 
-    Query = "select * from model;"
+    Query = "select * from housing;"
     # Load Data from Database
     Df = LoadData(Conn, Query)
     # close Database Connection
-    closeConnection(Conn)
+    return Conn, Df
