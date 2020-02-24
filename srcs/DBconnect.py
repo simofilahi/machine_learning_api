@@ -1,5 +1,6 @@
-import sqlite3 
+import sqlite3
 import pandas as pd
+
 
 def Connect(DBName):
     try:
@@ -8,6 +9,7 @@ def Connect(DBName):
         return error
     return Conn
 
+
 def LoadData(Conn, Query):
     try:
         Df = pd.read_sql_query(Query, Conn)
@@ -15,17 +17,23 @@ def LoadData(Conn, Query):
         return error
     return Df
 
+
 def closeConnection(Conn):
     Conn.close()
 
-def DBconnect():
-    #name of database
-    DBName = "db\latest.db"
+
+def DBconnect(uuid, modelname, features, target):
+    # path of database
+    DBpath = "/datasets/{uuid}.db".format(uuid=uuid)
     # Connect to Database
-    Conn = Connect(DBName)
-    # Query 
-    Query = "select * from housing;"
+    Conn = Connect(DBpath)
+    # Query
+    Query = "select {features} from data;".format(features=features)
     # Load Data from Database
-    Df = LoadData(Conn, Query)
-    # close Database Connection
-    return Conn, Df
+    train_X = LoadData(Conn, Query)
+    Query = "select {target} from data;".format(target=target)
+    train_Y = LoadData(Conn, Query)
+    # # close Database Connection
+    # print("train_X ==> ", train_X)
+    # print("train_Y ==> ", train_Y)
+    return Conn, train_X

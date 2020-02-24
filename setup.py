@@ -13,6 +13,7 @@ setup(
         'pandas>=0.25.3',
         'scikit-learn>=0.22',
         'scipy>=1.4.1',
+        'flask_mysqldb',
     ]
 )
 
