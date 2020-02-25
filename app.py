@@ -7,21 +7,38 @@ from sklearn.impute import SimpleImputer
 from srcs.model import model, prediction
 import numpy as np
 from srcs.DBconnect import DBconnect, closeConnection
-from flask_mysqldb import MySQL
+#from flask_mysqldb import MySQL
+# from flask_sqlalchemy import SQLAchemy
 import mindsdb
 
 app = Flask(__name__)
-app.config['MYSQL_HOST'] = 'localhost'
-app.config['MYSQL_USER'] = 'root'
-app.config['MYSQL_PASSWORD'] = ''
-app.config['MYSQL_DB'] = 'waste_to_resources'
-app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
+# app.config['MYSQL_HOST'] = 'localhost'
+# app.config['MYSQL_USER'] = 'simao'
+# app.config['MYSQL_PASSWORD'] = '123dcba'
+# app.config['MYSQL_DB'] = 'test'
+# app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
 
-mysql = MySQL(app)
+# mysql = MySQL(app)
 
 # jwt = JWTManager(app)
 #
 
+# app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://simao:simao@localhost/test'
+# db = SQLAchemy(app)
+
+
+# class Datasetuuid(db.Model):
+#     __tablename__ = 'dataset'
+#     uuid = db.Column(uuid, db.Integer, primary_key=True)
+
+#     def __init__(self, uuid):
+#         self.uuid = uuid
+
+
+# class Models(db.Model):
+#     __tablename__ = 'models'
+#     modelname = db.Column(modelname, db.String)
+#     uui
 
 def summarizeOfData(df):
     print(df.describe().round(decimals=2))
@@ -58,33 +75,41 @@ def datapreparation(df):
     for col in df.columns:
         df[col] = df[col].astype(int)
     # drop columns that include a string value
-    for col in df.columns:
-        if stringValue(df, col):
-            df.drop([col], axis=1, inplace=True)
-    # fill missing value by mean methode
-    df = missingValueHandler(df)
+    # for col in df.columns:
+    #     if stringValue(df, col):
+    #         df.drop([col], axis=1, inplace=True)
+    # # fill missing value by mean methode
+    # df = missingValueHandler(df)
     # handle Outliers
     return df
 
 
 def createModel(df, modelName):
     mdb = mindsdb.Predictor(name=modelName)
-    # We tell the Predictor what column or key we want to learn and from what data
     mdb.learn(
-        # the path to the file where we can learn from, (note: can be url)
-        from_data="https://s3.eu-west-2.amazonaws.com/mindsdb-example-data/home_rentals.csv",
-        # the column we want to learn to predict given all the data in the file
-        to_predict='rental_price',
-        use_gpu=True
-
+        from_data=df,
+        to_predict='B',
     )
-    print("type of mdb ==> ", type(mdb))
+    result = mdb.predict(
+        when={"test1": "9", "test2": "33", "test3": "0", "I": 10, "A": 2})
+    print("res is ${result}".format(result=result))
 
 
 @app.route('/')
 def upload():
     return render_template("file_upload_form.html")
 
+
+def creationTables():
+    # creation database tables;
+    cur = mysql.connection.cursor()
+    query = "CREATE TABLE IF NOT EXISTS dataset (uuid INT NOT NULL PRIMARY KEY)"
+    query_1 = "CREATE TABLE IF NOT EXISTS models (modelname varchar(50) NOT NULL, uuid INT NOT NULL, FOREIGN KEY (uuid) REFERENCES dataset(uuid))"
+    cur.execute(query)
+    cur.execute(query_1)
+
+
+# def insertIntoDb():
 
 CORS(app)
 @app.route('/training', methods=['POST', 'GET'])
@@ -106,6 +131,8 @@ def training():
         print("uuid ==> ", uuid)
         df = pd.read_json(path_or_buf=selectedFeature, orient='records')
         print(df)
+        # df = datapreparation(df)
+        createModel(df, modelname)
         # connect to mysql
         # cur = mysql.connection.cursor()
         # # get feature name from mysql

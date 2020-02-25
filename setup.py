@@ -14,6 +14,7 @@ setup(
         'scikit-learn>=0.22',
         'scipy>=1.4.1',
         'flask_mysqldb',
+        'Flask-SQLAlchemy>=2.4.1'
     ]
 )
 
