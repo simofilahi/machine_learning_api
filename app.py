@@ -1,203 +1,109 @@
+import mindsdb
 from flask import *
 import json
 import pandas as pd
-from flask_cors import CORS
-# from flask_jwt_extended import JWTManager
-from sklearn.impute import SimpleImputer
-from srcs.model import model, prediction
-import numpy as np
-from srcs.DBconnect import DBconnect, closeConnection
-#from flask_mysqldb import MySQL
-# from flask_sqlalchemy import SQLAchemy
-import mindsdb
-
+import os
+currentDirectory = os.getcwd()
+os.environ['MINDSDB_STORAGE_PATH'] = '{currentDirectory}\modelsinfo'.format(
+    currentDirectory=currentDirectory)
 app = Flask(__name__)
-# app.config['MYSQL_HOST'] = 'localhost'
-# app.config['MYSQL_USER'] = 'simao'
-# app.config['MYSQL_PASSWORD'] = '123dcba'
-# app.config['MYSQL_DB'] = 'test'
-# app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
-
-# mysql = MySQL(app)
-
-# jwt = JWTManager(app)
-#
-
-# app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://simao:simao@localhost/test'
-# db = SQLAchemy(app)
 
 
-# class Datasetuuid(db.Model):
-#     __tablename__ = 'dataset'
-#     uuid = db.Column(uuid, db.Integer, primary_key=True)
-
-#     def __init__(self, uuid):
-#         self.uuid = uuid
-
-
-# class Models(db.Model):
-#     __tablename__ = 'models'
-#     modelname = db.Column(modelname, db.String)
-#     uui
-
-def summarizeOfData(df):
-    print(df.describe().round(decimals=2))
-    df = df.describe().round(decimals=2).to_json(orient='split')
-    return df
-
-
-def missingValueHandler(df):
-    rows = df.shape[0]
-    newdf = df.loc[0:rows].applymap(lambda x: np.nan if x in (
-        'NA', 'n/a', 'na', '--', '-', 'NAN') else x)
-    # still not complete
-    if newdf.isnull().values.any() == True:
-        # print('Before fill missing values \n', newdf.head(15))
-        for key in newdf.columns:
-            median = newdf[key].median()
-            newdf[key].fillna(median, inplace=True)
-        # print('after fill missing values \n', newdf.head(10))
-        return newdf
-    else:
-        # print('still some missing values not NAN')
-        return newdf
-
-
-def stringValue(df, col):
-    for value in df[col]:
-        if type(value) != str:
-            return False
-    return True
-
-
-def datapreparation(df):
-    # change the type of values from str to int
-    for col in df.columns:
-        df[col] = df[col].astype(int)
-    # drop columns that include a string value
-    # for col in df.columns:
-    #     if stringValue(df, col):
-    #         df.drop([col], axis=1, inplace=True)
-    # # fill missing value by mean methode
-    # df = missingValueHandler(df)
-    # handle Outliers
-    return df
-
-
-def createModel(df, modelName):
-    mdb = mindsdb.Predictor(name=modelName)
-    mdb.learn(
-        from_data=df,
-        to_predict='B',
-    )
-    result = mdb.predict(
-        when={"test1": "9", "test2": "33", "test3": "0", "I": 10, "A": 2})
-    print("res is ${result}".format(result=result))
-
-
-@app.route('/')
-def upload():
-    return render_template("file_upload_form.html")
-
-
-def creationTables():
-    # creation database tables;
-    cur = mysql.connection.cursor()
-    query = "CREATE TABLE IF NOT EXISTS dataset (uuid INT NOT NULL PRIMARY KEY)"
-    query_1 = "CREATE TABLE IF NOT EXISTS models (modelname varchar(50) NOT NULL, uuid INT NOT NULL, FOREIGN KEY (uuid) REFERENCES dataset(uuid))"
-    cur.execute(query)
-    cur.execute(query_1)
-
-
-# def insertIntoDb():
-
-CORS(app)
-@app.route('/training', methods=['POST', 'GET'])
-def training():
+@app.route('/api/v1/training/<uuid>', methods=['POST'])
+def training(uuid):
+    # try:
+    # print("req ====> ", request.method)
+    model_uuid = uuid
     req = request.get_json(force=True)
-    print("req", req)
-    if req['method'] == 'POST':
-        data = req['body']
-        dt = data.copy()
+    if request.method == 'POST':
+        print("data ", req['modelname'])
+        # data = req['body']
+        dt = req.copy()
         # parse the data sented from front-end
         modelname = dt.get('modelname')
         selectedFeature = dt.get('selectedFeature')
+        # print("SELECTED ==> ", selectedFeature)
         selectedFeature = json.dumps(selectedFeature['data'])
         selectedTarget = dt.get('selectedTarget')
-        uuid = dt.get('uuid')
-        print("modelname ==> ", modelname)
-        print("selectedFeature ==> ", selectedFeature)
-        print("selectedTarget ==> ", selectedTarget)
-        print("uuid ==> ", uuid)
+        targetname = selectedTarget['value']
+        # print("uuid ==> ", uuid)
         df = pd.read_json(path_or_buf=selectedFeature, orient='records')
-        print(df)
-        # df = datapreparation(df)
-        createModel(df, modelname)
-        # connect to mysql
-        # cur = mysql.connection.cursor()
-        # # get feature name from mysql
-        # features = ''
-        # for i in range(len(selectedFeature)):
-        #     # print("selectedFeature ==> ", selectedFeature[i])
-        #     temp = selectedFeature[i]
-        #     Query = 'SELECT v.name_in_db FROM variable \
-        #         v JOIN part p on v.part_id = p.id JOIN data_set d ON \
-        #         p.data_set_id = d.id WHERE d.uuid LIKE "{uuid}" AND v.name Like "{temp}"'.format(
-        #         uuid=uuid, temp=temp)
-        #     print("Query ==> ", Query)
-        #     cur.execute(Query)
-        #     data = cur.fetchall()
-        #     if (i == (len(selectedFeature) - 1)):
-        #         features = features + data[0]['name_in_db']
-        #     else:
-        #         features = features + data[0]['name_in_db'] + ', '
-        #     # print("features ==> ", features)
-        # # get target name from mysql
-        # Query = 'SELECT v.name_in_db FROM variable \
-        #         v JOIN part p on v.part_id = p.id JOIN data_set d ON \
-        #         p.data_set_id = d.id WHERE d.uuid LIKE "{uuid}" AND v.name Like "{selectedTarget}"'.format(
-        #         uuid=uuid, selectedTarget=selectedTarget)
-        # cur.execute(Query)
-        # data = cur.fetchall()
-        # target = data[0]['name_in_db']
-        # # print("target ==> ", target)
-        # mysql.connection.commit()
-        # cur.close()
-        # # loading of data
-        # conn, df = DBconnect(uuid, modelname, features, target)
-        # closeConnection(conn)
-        # data preparation
-        # print("before ==> ", df)
-        # newdf = datapreparation(df)
-        # print("newdf ==> ", newdf)
-        # summarize data
-        # createModel(df, target)
-        # df = summarizeOfData(newdf)
-        # create model
-    return jsonify("succes")
-    # return jsonify(df)
+        mdb = mindsdb.Predictor(name=model_uuid)
+        mdb.learn(from_data=df, to_predict=targetname)
+        response = jsonify({"succes": True})
+        response.status_code = 200
+        return response
+    # except:
+    #     return jsonify({"succes": False})
 
-# @app.route('/predict', methods = ['POST'])
 
-# def predict():
-#     if request.method == 'POST':
-#         # loading of data
-#         conn, df = DBconnect()
-#         # pr = prediction()
-#         jsonify({'prediction': list(pr)})
-#     return render_template("success.html", model_name = pr)
+@app.route('/api/v1/prediction/<uuid>', methods=['POST'])
+def prediction(uuid):
+    # try:
+    model_uuid = uuid
+    req = request.get_json(force=True)
+    if request.method == 'POST':
+        dt = req.copy()
+        selectedFeature = dt.get('selectedFeature')
+        selectedFeature = json.dumps(selectedFeature['data'])
+        selectedTarget = dt.get('selectedTarget')
+        targetname = selectedTarget['value']
+        df = pd.read_json(path_or_buf=selectedFeature, orient='records')
+        print("here data frame ==> ", df)
+        mdb = mindsdb.Predictor(name=model_uuid)
+        result = mdb.predict(
+            when_data=df
+        )
+        # res = mdb.get_model_data(model_name=model_uuid)
+
+        res = json.dumps(result.data)
+        for x, y in result.data.items():
+            print(x, y)
+            if 'model_' + targetname == x:
+                predictedValues = y
+            elif targetname + '_model_confidence' == x:
+                confidance = y
+        data = {"values": predictedValues, "confidance": confidance}
+        print("")
+        response = jsonify({"success": True, "data":  data})
+        # print("res **** ===> ", res)
+        # result = jsonify(result)
+        # for i in range(0, 20):
+        # result = json.dumps(result,
+        #                     indent=2, sort_keys=True)
+        # print("here result ==> ", result)
+        # result = json.dumps(result.__dict__)
+        # print("here result ==> ", result)
+        # print("res ==> ", result['test1'])
+        # print("type ==> ", result)
+        return response
+    # except:
+    #     return jsonify({"success": False})
+
+
+@app.route('/api/v1/delete/<uuid>', methods=['GET'])
+def delete(uuid):
+    model_uuid = uuid
+    try:
+        if req['method'] == 'GET':
+            Predictor(name=model_uuid)
+            predictor.delete_model(model_name=model_name)
+            return jsonify({"success": True})
+    except:
+        return jsonify({"success": False})
+
+
+@app.route('/api/v1/download/<uuid>', methods=['GET'])
+def download(uuid):
+    model_uuid = uuid
+    try:
+        if req['method'] == 'GET':
+            predictor = Predictor(name=model_uuid)
+            predictor.delete_model(model_name=model_name)
+        return jsonify("download")
+    except expression as identifier:
+        return jsonify({"success": False})
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
-
-# f = request.files['file']
-# f.save(f.filename)
-# msg = model(f.filename)
-# step 1 =>
-# conn, df = DBconnect()
-# f = request.files['file']
-# step 2 => summarize data
-# SummarizeData(df)
-# else:
-#     return "model not found"
+    app.run(host='10.1.35.13', port=5000)
