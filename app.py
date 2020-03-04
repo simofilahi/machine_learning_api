@@ -2,12 +2,41 @@ import mindsdb
 from flask import *
 import json
 import pandas as pd
+from exportedmodels.export import export
 import os
+from threading import Thread
+import time
+import requests
+
 currentDirectory = os.getcwd()
 os.environ['MINDSDB_STORAGE_PATH'] = '{currentDirectory}\modelsinfo'.format(
     currentDirectory=currentDirectory)
 app = Flask(__name__)
 
+def threaded_task(df, model_uuid, targetname):
+    mdb = mindsdb.Predictor(name=model_uuid)
+    mdb.learn(from_data=df, to_predict=targetname)
+    export(mdb, model_uuid)
+    url = ' http://127.0.0.1:5000/api/v1/prediction/4deb0c2e-cd53-4d77-a612-a0d23893e423'
+    data = {
+        "modelname": "model",
+        "selectedFeature": {
+        "data": [
+            { "test2": 2, "test3": 3, "A": 55, "B": 66 },
+            { "test2": 10, "test3": 22, "A": 33, "B": 433 },
+            { "test2": 33, "test3": 44, "A": 12, "B": 12 },
+            { "test2": "14", "test3": "21", "A": "45", "B": "44" },
+            { "test2": "12", "test3": "11", "A": "33", "B": "55" },
+            { "test2": "55", "test3": "1", "A": 4, "B": 3 },
+            { "test2": "43", "test3": "4", "A": 4, "B": 1 },
+            { "test2": "33", "test3": "0", "A": 6, "B": 7 }
+            ]
+        },
+        "selectedTarget": {"value": "I"}
+    }
+    headers = {"content-type" : "application/json"}
+    req = requests.post(url, data=json.dumps(data), headers=headers)
+    print(req.text)
 
 @app.route('/api/v1/training/<uuid>', methods=['POST'])
 def training(uuid):
@@ -16,7 +45,7 @@ def training(uuid):
     model_uuid = uuid
     req = request.get_json(force=True)
     if request.method == 'POST':
-        print("data ", req['modelname'])
+        # print("data ", req['modelname'])
         # data = req['body']
         dt = req.copy()
         # parse the data sented from front-end
@@ -26,10 +55,10 @@ def training(uuid):
         selectedFeature = json.dumps(selectedFeature['data'])
         selectedTarget = dt.get('selectedTarget')
         targetname = selectedTarget['value']
-        # print("uuid ==> ", uuid)
         df = pd.read_json(path_or_buf=selectedFeature, orient='records')
-        mdb = mindsdb.Predictor(name=model_uuid)
-        mdb.learn(from_data=df, to_predict=targetname)
+        thread = Thread(target=threaded_task, args=(df, model_uuid, targetname))
+        thread.daemon = True
+        thread.start()
         response = jsonify({"succes": True})
         response.status_code = 200
         return response
@@ -49,33 +78,17 @@ def prediction(uuid):
         selectedTarget = dt.get('selectedTarget')
         targetname = selectedTarget['value']
         df = pd.read_json(path_or_buf=selectedFeature, orient='records')
-        print("here data frame ==> ", df)
         mdb = mindsdb.Predictor(name=model_uuid)
         result = mdb.predict(
             when_data=df
         )
-        # res = mdb.get_model_data(model_name=model_uuid)
-
-        res = json.dumps(result.data)
         for x, y in result.data.items():
-            print(x, y)
             if 'model_' + targetname == x:
                 predictedValues = y
             elif targetname + '_model_confidence' == x:
                 confidance = y
         data = {"values": predictedValues, "confidance": confidance}
-        print("")
         response = jsonify({"success": True, "data":  data})
-        # print("res **** ===> ", res)
-        # result = jsonify(result)
-        # for i in range(0, 20):
-        # result = json.dumps(result,
-        #                     indent=2, sort_keys=True)
-        # print("here result ==> ", result)
-        # result = json.dumps(result.__dict__)
-        # print("here result ==> ", result)
-        # print("res ==> ", result['test1'])
-        # print("type ==> ", result)
         return response
     # except:
     #     return jsonify({"success": False})
@@ -85,9 +98,9 @@ def prediction(uuid):
 def delete(uuid):
     model_uuid = uuid
     try:
-        if req['method'] == 'GET':
-            Predictor(name=model_uuid)
-            predictor.delete_model(model_name=model_name)
+        if request.method == 'GET':
+            predictor = mindsdb.Predictor(name=model_uuid)
+            predictor.delete_model(model_name=model_uuid)
             return jsonify({"success": True})
     except:
         return jsonify({"success": False})
@@ -96,14 +109,15 @@ def delete(uuid):
 @app.route('/api/v1/download/<uuid>', methods=['GET'])
 def download(uuid):
     model_uuid = uuid
-    try:
-        if req['method'] == 'GET':
-            predictor = Predictor(name=model_uuid)
-            predictor.delete_model(model_name=model_name)
-        return jsonify("download")
-    except expression as identifier:
-        return jsonify({"success": False})
-
+    # try:
+    if request.method == 'GET':
+        mdb = mindsdb.Predictor(name=model_uuid)
+        path = model_uuid + '.zip'
+        res = mdb.load(model_archive_path=path)
+        print("res ==> ", res)
+    return jsonify("download")
+    # except:
+    #     return jsonify({"success": False})
 
 if __name__ == '__main__':
-    app.run(host='10.1.35.13', port=5000)
+    app.run(host='10.1.35.13', port=5000, debug=True)
