@@ -14,6 +14,7 @@ os.environ['MINDSDB_STORAGE_PATH'] = '{currentDirectory}\modelsinfo'.format(
 app = Flask(__name__)
 
 def threaded_task(df, model_uuid, targetname):
+    os.environ['MINDSDB_STORAGE_PATH'] = '{currentDirectory}\modelsinfo'.format(currentDirectory=currentDirectory)
     mdb = mindsdb.Predictor(name=model_uuid)
     mdb.learn(from_data=df, to_predict=targetname)
     export(mdb, model_uuid)
