@@ -9,12 +9,9 @@ setup(
     install_requires=[
         'Flask>=1.1.1',
         'Flask-Cors>=3.0.8',
-        'numpy>=1.18.0',
-        'pandas>=0.25.3',
-        'scikit-learn>=0.22',
-        'scipy>=1.4.1',
         'flask_mysqldb',
-        'Flask-SQLAlchemy>=2.4.1'
+        'Flask-SQLAlchemy>=2.4.1',
+        'MindsDB==1.13.11'
     ]
 )
 
